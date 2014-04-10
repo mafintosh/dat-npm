@@ -1,6 +1,6 @@
 # dat-npm
 
-npm as a dat data set
+npm as a dat data set. try it out at [dat-npm.mathiasbuus.eu](http://dat-npm.mathiasbuus.eu)
 
 	npm install -g dat-npm
 
@@ -8,4 +8,4 @@ to start a dat server do
 
 	dat-npm [a-folder-store-stuff-in]
 
-the above will print out a port it is listening on
+the above will print out the port it is listening on
