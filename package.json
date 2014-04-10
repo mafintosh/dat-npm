@@ -1,6 +1,6 @@
 {
   "name": "dat-npm",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "npm registry on dat",
   "main": "index.js",
   "dependencies": {
@@ -13,7 +13,7 @@
     "flat-file-db": "^0.1.3"
   },
   "bin": {
-	"dat-npm": "./server.js"
+    "dat-npm": "./server.js"
   },
   "devDependencies": {},
   "scripts": {},
