@@ -4,14 +4,13 @@
   "description": "npm registry on dat",
   "main": "index.js",
   "dependencies": {
-    "request": "^2.34.0",
-    "JSONStream": "^0.8.0",
-    "through2": "^0.4.1",
-    "mkdirp": "^0.3.5",
+    "changes-stream": "^1.0.3",
+    "dat": "maxogden/dat",
+    "optimist": "^0.6.1",
+    "run-series": "^1.0.2",
+    "single-line-log": "^0.4.0",
     "through": "^2.3.4",
-    "flat-file-db": "^0.1.3",
-    "dat": "^4.5.1",
-    "optimist": "^0.6.1"
+    "through2": "^0.4.1"
   },
   "bin": {
     "dat-npm": "./server.js"
