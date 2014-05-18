@@ -46,10 +46,13 @@ var dat = new Dat(folder, {port: process.env.PORT || argv.port, serve: true}, fu
     console.log('creating changes stream...')
     var count = 0
   
-    var changes = request('https://fullfatdb.npmjs.com/registry/_changes?heartbeat=30000&include_docs=true&feed=continuous')
+    var changes = request('https://fullfatdb.npmjs.com/registry/_changes?heartbeat=30000&include_docs=true&feed=continuous&since=' + seq)
     changes.pipe(split()).pipe(through.obj({highWaterMark: 20}, function(data, enc, cb) {
       data = JSON.parse(data)
       var doc = data.doc
+      
+      changes.on('end', update)
+      changes.on('error', update)
     
       // dat uses .id
       doc.id = doc._id
