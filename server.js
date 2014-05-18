@@ -45,7 +45,7 @@ var dat = new Dat(folder, {port: process.env.PORT || argv.port, serve: true}, fu
     console.log('creating changes stream...')
     var count = 0
     
-    var reqUrl = 'https://fullfatdb.npmjs.com/registry/_changes?heartbeat=30000&include_docs=true&feed=continuous' + seq ? '&since=' + seq : ''
+    var reqUrl = 'https://fullfatdb.npmjs.com/registry/_changes?heartbeat=30000&include_docs=true&feed=continuous' + (seq ? '&since=' + seq : '')
     console.log(reqUrl)
     var changes = request(reqUrl)
     changes.pipe(split()).pipe(through.obj({highWaterMark: 20}, function(data, enc, cb) {
