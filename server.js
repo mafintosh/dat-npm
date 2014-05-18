@@ -9,6 +9,8 @@
 var through = require('through2');
 var path = require('path');
 var ChangesStream = require('changes-stream')
+
+
 // var flat = require('flat-file-db')
 // var log = require('single-line-log').stdout
 // var optimist = require('optimist')
@@ -45,16 +47,20 @@ var ChangesStream = require('changes-stream')
 //     
 //     console.log('creating changes stream...')
 
-    var changes = new ChangesStream({
-      db: 'https://fullfatdb.npmjs.com/registry',
-      include_docs: true,
-      since: seq
-    });
-    
+
+
+   
     var count = 0
     
-    var fetcher = through.obj({ highWaterMark: 50 }, function(data, _, cb) {
-      setTimeout(cb, 1000)
+    var cstream = new ChangesStream({
+      db: 'https://fullfatdb.npmjs.com/registry',
+      include_data: true
+    })
+    
+    cstream.pipe(through.obj({highWaterMark: 20}, function(ch, enc, next){
+      console.log(ch)
+      setTimeout(next, 1000)
+    }))
       // var doc = data.doc
    //    
    //    // dat uses .id
@@ -97,6 +103,5 @@ var ChangesStream = require('changes-stream')
    //    })
     })
     
-    changes.pipe(fetcher)
 //   }
 // })
