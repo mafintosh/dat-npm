@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // haha
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
+// process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
 
 var Dat = require('dat');
 var request = require('request')
@@ -42,10 +42,9 @@ var dat = new Dat(folder, {port: process.env.PORT || argv.port, serve: true}, fu
   update()
   
   function update() {
-    function restart() {
-      setTimeout(update, 1000)
-    };
     
+    console.log('creating changes stream...')
+
     var changes = new ChangesStream({
       db: 'https://fullfatdb.npmjs.com/registry',
       include_docs: true,
@@ -55,46 +54,47 @@ var dat = new Dat(folder, {port: process.env.PORT || argv.port, serve: true}, fu
     var count = 0
     
     var fetcher = through.obj({ highWaterMark: 50 }, function(data, _, cb) {
-      var doc = data.doc
-      
-      // dat uses .id
-      doc.id = doc._id
-      delete doc._id
-      
-      // keep the seq around because why not
-      doc.couchSeq = seq = data.seq
-      
-      dat.put(doc, function(err, latest) {
-        if (err) throw err
-        
-        var versions = Object.keys(latest.versions)
-        
-        // fetch all attachments
-        var fns = versions.map(function(version) {
-          var tgz = latest.versions[version].dist.tarball
-          if (!tgz) return function(cb) { setImmediate(cb) }
-          return function(cb) {
-            var filename = latest.name + '-' + version + '.tgz'
-            
-            var ws = dat.createBlobWriteStream(filename, latest, function(err, updated) {
-              if (err) return cb(err)
-              latest = updated
-              cb()
-            })
-            
-            console.log('tgz GET', tgz)
-            
-            request(tgz).pipe(ws)
-          }
-        })
-        
-        series(fns, function(err, results) {
-          if (err) console.error('GET ERR', err)
-          console.log(++count, [latest.id, latest.version])
-          cb()
-        })
-        
-      })
+      setTimeout(cb, 1000)
+      // var doc = data.doc
+   //    
+   //    // dat uses .id
+   //    doc.id = doc._id
+   //    delete doc._id
+   //    
+   //    // keep the seq around because why not
+   //    doc.couchSeq = seq = data.seq
+   //    
+   //    dat.put(doc, function(err, latest) {
+   //      if (err) throw err
+   //      
+   //      var versions = Object.keys(latest.versions)
+   //      
+   //      // fetch all attachments
+   //      var fns = versions.map(function(version) {
+   //        var tgz = latest.versions[version].dist.tarball
+   //        if (!tgz) return function(cb) { setImmediate(cb) }
+   //        return function(cb) {
+   //          var filename = latest.name + '-' + version + '.tgz'
+   //          
+   //          var ws = dat.createBlobWriteStream(filename, latest, function(err, updated) {
+   //            if (err) return cb(err)
+   //            latest = updated
+   //            cb()
+   //          })
+   //          
+   //          console.log('tgz GET', tgz)
+   //          
+   //          request(tgz).pipe(ws)
+   //        }
+   //      })
+   //      
+   //      series(fns, function(err, results) {
+   //        if (err) console.error('GET ERR', err)
+   //        console.log(++count, [latest.id, latest.version])
+   //        cb()
+   //      })
+   //      
+   //    })
     })
     
     changes.pipe(fetcher)
