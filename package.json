@@ -6,7 +6,9 @@
   "dependencies": {
     "changes-stream": "^1.0.3",
     "dat": "maxogden/dat",
+    "flat-file-db": "^0.1.3",
     "optimist": "^0.6.1",
+    "request": "^2.34.0",
     "run-series": "^1.0.2",
     "single-line-log": "^0.4.0",
     "through": "^2.3.4",
