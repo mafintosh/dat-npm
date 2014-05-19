@@ -62,36 +62,54 @@ var dat = new Dat(folder, {port: process.env.PORT || argv.port, serve: true}, fu
       // keep the seq around because why not
       doc.couchSeq = seq = data.seq
       
-      dat.put(doc, function(err, latest) {
-        if (err) throw err
-        
+      dat.get(doc.id, function(err, existing) {
+        if (err) return put()
+        getAttachments(existing)
+      })
+      
+      function put() {
+        dat.put(doc, function(err, latest) {
+          if (err) {
+            console.error('PUT ERR!', doc, err)
+            return cb()
+          }
+          getAttachments(latest)
+        })
+      }
+      
+      function getAttachments(latest) {
         var versions = Object.keys(latest.versions)
-        
+      
         // fetch all attachments
-        var fns = versions.map(function(version) {
+        var fns = []
+        versions.map(function(version) {
+          var filename = latest.name + '-' + version + '.tgz'
           var tgz = latest.versions[version].dist.tarball
-          if (!tgz) return function(cb) { setImmediate(cb) }
-          return function(cb) {
-            var filename = latest.name + '-' + version + '.tgz'
-            
+          if (!tgz) return console.log(latest.name, version, 'has no dist.tarball')
+          if (latest.attachments && latest.attachments[filename]) return console.log(filename, 'already in doc')
+          
+          fns.push(getAttachment)
+          
+          function getAttachment(cb) {
+          
             var ws = dat.createBlobWriteStream(filename, latest, function(err, updated) {
               if (err) return cb(err)
               latest = updated
               cb()
             })
-            
+          
             console.log('tgz GET', tgz)
             request(tgz).pipe(ws)
           }
         })
-        
+      
         parallel(fns, function(err, results) {
-          if (err) console.error('GET ERR', err)
+          if (err) console.error('GET ERR!', err)
           console.log(++count, [latest.id, latest.version])
           cb()
         })
-        
-      })
+      }
+       
     }))
     
   }
