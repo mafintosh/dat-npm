@@ -16,6 +16,7 @@ var optimist = require('optimist')
     describe: 'set the port to listen on'
   });
 
+var noop = function() {};
 var argv = optimist.argv;
 var folder = argv._[0];
 
@@ -24,9 +25,12 @@ if (!folder) {
   process.exit(1);
 }
 
-var dat = new Dat(folder, {port: process.env.PORT || argv.port, serve: true}, function(err) {
+var port = process.env.PORT || argv.port;
+var dat = new Dat(folder, function(err) {
   if (err) throw err;
   
+  dat.listen(port, noop);
+
   var db = flat.sync(path.join(folder, 'sync.db'));
   var seq = db.get('seq');
   
