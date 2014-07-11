@@ -62,6 +62,9 @@ var dat = new Dat(folder, function(err) {
       doc.id = doc._id;
       delete doc._id;
       
+      // dat reserves .version, and .version shouldn't be on top level of npm docs anyway
+      delete doc.version
+      
       // keep the seq around because why not
       doc.couchSeq = seq = data.seq;
       
