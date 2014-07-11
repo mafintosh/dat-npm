@@ -84,6 +84,7 @@ var dat = new Dat(folder, function(err) {
       }
       
       function getAttachments(latest) {
+        if (!latest.versions) return cb()
         var versions = Object.keys(latest.versions);
       
         // fetch all attachments
@@ -105,12 +106,17 @@ var dat = new Dat(folder, function(err) {
             })
           
             console.log('tgz GET', tgz);
-            request(tgz).pipe(ws);
+            var req = request(tgz);
+            req.on('error', function(err) {
+              console.error('ERROR fetching', tgz, err);
+              cb();
+            })
+            req.pipe(ws);
           }
         })
       
         parallel(fns, function(err, results) {
-          if (err) console.error('GET ERR!', err);
+          if (err) console.error('GET ERROR!', err);
           console.log(++count, [latest.id, latest.version]);
           cb();
         })
