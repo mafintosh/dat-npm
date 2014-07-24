@@ -17,7 +17,7 @@
     "through2": "^0.4.1"
   },
   "bin": {
-    "dat-npm": "./server.js"
+    "dat-npm": "./cli.js"
   },
   "devDependencies": {},
   "scripts": {},
