@@ -1,6 +1,6 @@
 {
   "name": "dat-npm",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "npm registry on dat",
   "main": "index.js",
   "dependencies": {
