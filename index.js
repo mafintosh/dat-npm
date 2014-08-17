@@ -1,37 +1,14 @@
-#!/usr/bin/env node
-
-var Dat = require('dat');
 var request = require('request');
-var parallel = require('run-parallel');
+var runSeries = require('run-series');
 var through = require('through2');
 var path = require('path');
 var flat = require('flat-file-db');
 var log = require('single-line-log').stdout;
 var split = require('binary-split');
 
-var optimist = require('optimist')
-  .usage('Usage: $0 [folder]')
-  .option('p', {
-    alias: 'port',
-    describe: 'set the port to listen on'
-  });
-
-var noop = function() {};
-var argv = optimist.argv;
-var folder = argv._[0];
-
-if (!folder) {
-  optimist.showHelp();
-  process.exit(1);
-}
-
-var port = process.env.PORT || argv.port;
-var dat = new Dat(folder, function(err) {
-  if (err) throw err;
-  
-  dat.listen(port, noop);
-
-  var db = flat.sync(path.join(folder, 'sync.db'));
+module.exports = function(dat, cb) {
+  cb()
+  var db = flat.sync('./sync.db');
   var seq = db.get('seq');
   
   if (seq) console.log('last seq', seq);
@@ -58,8 +35,8 @@ var dat = new Dat(folder, function(err) {
       changes.on('finish', update);
       changes.on('error', update);
       
-      // dat uses .id
-      doc.id = doc._id;
+      // dat uses .key
+      doc.key = doc._id;
       delete doc._id;
       
       // dat reserves .version, and .version shouldn't be on top level of npm docs anyway
@@ -115,7 +92,7 @@ var dat = new Dat(folder, function(err) {
           }
         })
       
-        parallel(fns, function(err, results) {
+        runSeries(fns, function(err, results) {
           if (err) console.error('GET ERROR!', err);
           console.log(++count, [latest.id, latest.version]);
           cb();
@@ -125,4 +102,4 @@ var dat = new Dat(folder, function(err) {
     }));
     
   };
-});
+}
