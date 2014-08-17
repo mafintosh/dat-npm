@@ -1,13 +1,27 @@
 # dat-npm
 
-npm as a [dat](https://github.com/maxogden/dat) data set. try it out at [dat-npm.mathiasbuus.eu](http://dat-npm.mathiasbuus.eu)
+npm for [dat](https://github.com/maxogden/dat). try it out at [npm.dathub.org](http://npm.dathub.org)
 
 ![dat](http://img.shields.io/badge/Development%20sponsored%20by-dat-green.svg?style=flat)
 
-	npm install -g dat-npm
+dat-npm works as a dat listen hook. first install dat
 
-to start a dat server do
+```
+npm install -g dat
+mkdir dat-npm
+cd dat-npm
+dat init # put in your info
+npm install dat-npm # install the hook
+```
 
-	dat-npm [a-folder-store-stuff-in]
+then add the following hook to dat.json
 
-the above will print out the port it is listening on
+``` json
+{
+  "hooks": {
+    "listen": "dat-npm"
+  }
+}
+```
+
+to start serving the data set simply to a `dat listen` which will make dat import npm.
