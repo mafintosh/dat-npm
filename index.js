@@ -49,7 +49,10 @@ module.exports = function(dat, cb) {
         if (err) return cb(err)
 
         var version = versions.shift()
-        if (!version) return cb(null, latest)
+        if (!version) {
+          log('No more blobs for %s', latest.name)
+          return cb(null, latest)
+        }
 
         var filename = latest.name + '-' + version + '.tgz';
         var tgz = latest.versions[version].dist.tarball
@@ -66,7 +69,7 @@ module.exports = function(dat, cb) {
 
         log('Downloading %s', tgz)
 
-        pump(request(tgz), ws, function(err) {
+        pump(request(tgz, {timeout:10*60*1000}), ws, function(err) {
           if (err) next(err)
         })
       }
