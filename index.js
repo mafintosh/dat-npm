@@ -70,24 +70,39 @@ module.exports = function(dat, cb) {
         doc.couchSeq = data.seq
 
         var put = function(doc) {
-          Object.keys(doc.versions).forEach(function(version) {
+          var versions = Object.keys(doc.versions)
+
+          var loop = function() {
+            if (!versions.length) return dat.put(doc, {version:doc.version}, ondone)
+
+            var version = versions.shift()
             var latest = doc.versions[version]
             var filename = latest.name + '-' + version + '.tgz';
             var tgz = doc.versions[version].dist.tarball
 
             if (!tgz) {
               log('No dist.tarball available for %s (%s)', doc.name, version)
-              return
+              return loop()
             }
 
             doc.blobs = doc.blobs || {}
-            doc.blobs[filename] = {
-              key: filename,
-              link: tgz
-            }
-          })
+            if (doc.blobs[filename]) return loop()
 
-          dat.put(doc, {version:doc.version}, ondone)
+            request.head(tgz, function(err, response) {
+              if (err) return ondone(err)
+
+              doc.blobs[filename] = {
+                key: filename,
+                size: Number(response.headers['content-length']),
+                link: tgz
+              }
+
+              loop()
+            })
+
+          }
+
+          loop()
         }
 
         dat.get(doc.key, function(err, existing) {
