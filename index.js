@@ -41,42 +41,6 @@ module.exports = function(dat, cb) {
 
     var url = 'https://skimdb.npmjs.com/registry/_changes?heartbeat=30000&include_docs=true&feed=continuous' + (seq ? '&since=' + seq : '');
 
-    var getAttachments = function(latest, cb) {
-      if (!latest.versions) return cb(null, latest)
-      var versions = Object.keys(latest.versions)
-
-      var loop = function(err, latest) {
-        if (err) return cb(err)
-
-        var version = versions.shift()
-        if (!version) {
-          log('No more blobs for %s', latest.name)
-          return cb(null, latest)
-        }
-
-        var filename = latest.name + '-' + version + '.tgz';
-        var tgz = latest.versions[version].dist.tarball
-
-        if (!tgz) {
-          log('No dist.tarball available for %s (%s)', latest.name, version)
-          return tick(loop, null, latest)
-        }
-
-        if (latest.blobs && latest.blobs[filename]) return tick(loop, null, latest)
-
-        var next = once(loop)
-        var ws = dat.createBlobWriteStream(filename, latest, next)
-
-        log('Downloading %s', tgz)
-
-        pump(request(tgz, {timeout:10*60*1000}), ws, function(err) {
-          if (err) next(err)
-        })
-      }
-
-      loop(null, latest)
-    }
-
     var update = function(err) {
       if (err) {
         log('Error: %s - retrying in 5s', err.message)
@@ -106,10 +70,24 @@ module.exports = function(dat, cb) {
         doc.couchSeq = data.seq
 
         var put = function(doc) {
-          dat.put(doc, {version:doc.version}, function(err, doc) {
-            if (err) return ondone(err)
-            getAttachments(doc, ondone)
+          Object.keys(doc.versions).forEach(function(version) {
+            var latest = doc.versions[version]
+            var filename = latest.name + '-' + version + '.tgz';
+            var tgz = doc.versions[version].dist.tarball
+
+            if (!tgz) {
+              log('No dist.tarball available for %s (%s)', doc.name, version)
+              return
+            }
+
+            doc.blobs = doc.blobs || {}
+            doc.blobs[filename] = {
+              key: filename,
+              link: tgz
+            }
           })
+
+          dat.put(doc, {version:doc.version}, ondone)
         }
 
         dat.get(doc.key, function(err, existing) {
@@ -121,11 +99,7 @@ module.exports = function(dat, cb) {
           doc.blobs = existing.blobs
           doc.version = existing.version
 
-          // ensure that the old blobs we're fetched (to survive a restart)
-          getAttachments(doc, function(err, doc) {
-            if (err) return ondone(err)
-            put(doc)
-          })
+          put(doc)
         })
       }
 
