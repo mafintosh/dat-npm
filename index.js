@@ -70,7 +70,7 @@ module.exports = function(dat, cb) {
         doc.couchSeq = data.seq
 
         var put = function(doc) {
-          var versions = Object.keys(doc.versions)
+          var versions = Object.keys((typeof doc.versions === 'object' && doc.versions) || {})
 
           var loop = function() {
             if (!versions.length) return dat.put(doc, {version:doc.version}, ondone)
