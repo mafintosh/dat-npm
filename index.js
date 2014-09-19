@@ -34,18 +34,18 @@ var log = function(fmt) {
 }
 
 module.exports = function(dat, cb) {
-  latestSeq(dat, function(seq) {
-    seq = Math.max(0, seq-1) // sub 1 incase of errors
+  var update = function(err) {
+    if (err) {
+      log('Error: %s - retrying in 5s', err.message)
+      return setTimeout(update, 5000)
+    }
 
-    if (seq) log('Continuing fetching npm data from seq: %d', seq)
+    latestSeq(dat, function(seq) {
+      seq = Math.max(0, seq-1) // sub 1 incase of errors
 
-    var url = 'https://skimdb.npmjs.com/registry/_changes?heartbeat=30000&include_docs=true&feed=continuous' + (seq ? '&since=' + seq : '');
+      if (seq) log('Continuing fetching npm data from seq: %d', seq)
 
-    var update = function(err) {
-      if (err) {
-        log('Error: %s - retrying in 5s', err.message)
-        return setTimeout(update, 5000)
-      }
+      var url = 'https://skimdb.npmjs.com/registry/_changes?heartbeat=30000&include_docs=true&feed=continuous' + (seq ? '&since=' + seq : '');
 
       var write = function(data, enc, cb) {
         data = JSON.parse(data)
@@ -55,7 +55,7 @@ module.exports = function(dat, cb) {
 
         var ondone = function(err, doc) {
           if (err) return cb(err)
-          log('Updated %s (version: %d)', doc.key, doc.version)
+          if (doc) log('Updated %s (version: %d)', doc.key, doc.version)
           cb()
         }
 
@@ -71,8 +71,10 @@ module.exports = function(dat, cb) {
 
         var put = function(doc) {
           var versions = Object.keys((typeof doc.versions === 'object' && doc.versions) || {})
+          var updated = false
 
           var loop = function() {
+            if (!versions.length && !updated) return ondone()
             if (!versions.length) return dat.put(doc, {version:doc.version}, ondone)
 
             var version = versions.shift()
@@ -88,6 +90,7 @@ module.exports = function(dat, cb) {
             doc.blobs = doc.blobs || {}
             if (doc.blobs[filename]) return loop()
 
+            updated = true
             request.head(tgz, function(err, response) {
               if (err) return ondone(err)
 
@@ -119,10 +122,9 @@ module.exports = function(dat, cb) {
       }
 
       pump(request(url), split(), through.obj(write), update)
-    }
+    })
+  }
 
-    update()
-  })
-
+  update()
   cb()
 }
