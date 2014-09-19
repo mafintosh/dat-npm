@@ -4,6 +4,7 @@ var split = require('binary-split')
 var once = require('once')
 var pump = require('pump')
 var concat = require('concat-stream')
+var parallel = require('parallel-transform')
 
 var tick = function(fn, err, val) {
   process.nextTick(function() {
@@ -33,6 +34,97 @@ var log = function(fmt) {
   console.log.apply(console, arguments)
 }
 
+var addBlobSize = function() {
+  return parallel(20, function(data, cb) {
+    var blobs = Object.keys(data.blobs || {})
+    var i = 0
+
+    var loop = function() {
+      if (i >= blobs.length) return cb(null, data)
+
+      var bl = data.blobs[blobs[i++]]
+      if (typeof bl.size === 'number') return loop()
+
+      request.head(bl.link, function(err, response) {
+        if (err) return cb(err)
+        if (response.statusCode !== 200) return cb(new Error('bad status code for '+bl.key+' ('+response.statusCode+')'))
+        log('Fetched blob size for %s (%s)', bl.link, data.key)
+        bl.size = Number(response.headers['content-length'])
+        loop()
+      })
+    }
+
+    loop()
+  })
+}
+
+var parse = function(dat) {
+  return through.obj(function(data, enc, cb) {
+    data = JSON.parse(data)
+    var doc = data.doc
+
+    // dat uses .key
+    doc.key = doc._id
+    delete doc._id
+
+    // dat reserves .version, and .version shouldn't be on top level of npm docs anyway
+    delete doc.version
+
+    // keep the seq around because why not
+    doc.couchSeq = data.seq
+
+    var push = function(doc, updated) {
+      var versions = Object.keys((typeof doc.versions === 'object' && doc.versions) || {})
+
+      versions.forEach(function(version) {
+        var latest = doc.versions[version]
+        var filename = latest.name + '-' + version + '.tgz';
+        var tgz = doc.versions[version].dist.tarball
+
+        if (!tgz) {
+          log('No dist.tarball available for %s (%s)', doc.name, version)
+          return
+        }
+
+        doc.blobs = doc.blobs || {}
+        if (doc.blobs[filename]) return
+
+        updated = true
+        doc.blobs[filename] = {
+          key: filename,
+          link: tgz
+        }
+      })
+
+      if (updated) return cb(null, doc)
+
+      log('%s was not updated - skipping', doc.name)
+      cb()
+    }
+
+    dat.get(doc.key, function(err, existing) {
+      if (err && !err.notFound) return cb(err)
+      if (!existing) return push(doc, true)
+
+      log('Previous version for %s (version: %d) found. Updating...', doc.key, existing.version)
+      doc.blobs = existing.blobs
+      doc.version = existing.version
+
+      push(doc, false)
+    })
+  })
+}
+
+var save = function(dat) {
+  return through.obj(function(doc, enc, cb) {
+    dat.put(doc, {version:doc.version}, function(err, doc) {
+      if (err) return cb(err)
+      log('Updated %s (version: %d)', doc.key, doc.version)
+      cb()
+    })
+  })
+}
+
 module.exports = function(dat, cb) {
   var update = function(err) {
     if (err) {
@@ -47,81 +139,7 @@ module.exports = function(dat, cb) {
 
       var url = 'https://skimdb.npmjs.com/registry/_changes?heartbeat=30000&include_docs=true&feed=continuous' + (seq ? '&since=' + seq : '');
 
-      var write = function(data, enc, cb) {
-        data = JSON.parse(data)
-        var doc = data.doc
-
-        log('Updating %s (seq: %d)', doc._id, data.seq)
-
-        var ondone = function(err, doc) {
-          if (err) return cb(err)
-          if (doc) log('Updated %s (version: %d)', doc.key, doc.version)
-          cb()
-        }
-
-        // dat uses .key
-        doc.key = doc._id
-        delete doc._id
-
-        // dat reserves .version, and .version shouldn't be on top level of npm docs anyway
-        delete doc.version
-
-        // keep the seq around because why not
-        doc.couchSeq = data.seq
-
-        var put = function(doc) {
-          var versions = Object.keys((typeof doc.versions === 'object' && doc.versions) || {})
-          var updated = false
-
-          var loop = function() {
-            if (!versions.length && !updated) return ondone()
-            if (!versions.length) return dat.put(doc, {version:doc.version}, ondone)
-
-            var version = versions.shift()
-            var latest = doc.versions[version]
-            var filename = latest.name + '-' + version + '.tgz';
-            var tgz = doc.versions[version].dist.tarball
-
-            if (!tgz) {
-              log('No dist.tarball available for %s (%s)', doc.name, version)
-              return loop()
-            }
-
-            doc.blobs = doc.blobs || {}
-            if (doc.blobs[filename]) return loop()
-
-            updated = true
-            request.head(tgz, function(err, response) {
-              if (err) return ondone(err)
-
-              doc.blobs[filename] = {
-                key: filename,
-                size: Number(response.headers['content-length']),
-                link: tgz
-              }
-
-              loop()
-            })
-
-          }
-
-          loop()
-        }
-
-        dat.get(doc.key, function(err, existing) {
-          if (err && !err.notFound) return ondone(err)
-
-          if (!existing) return put(doc)
-
-          log('Previous version for %s (version: %d) found. Updating...', doc.key, existing.version)
-          doc.blobs = existing.blobs
-          doc.version = existing.version
-
-          put(doc)
-        })
-      }
-
-      pump(request(url), split(), through.obj(write), update)
+      pump(request(url), split(), parse(dat), addBlobSize(dat), save(dat), update)
     })
   }
 
