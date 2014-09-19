@@ -42,12 +42,20 @@ var addBlobSize = function() {
     var loop = function() {
       if (i >= blobs.length) return cb(null, data)
 
-      var bl = data.blobs[blobs[i++]]
+      var key = blobs[i++]
+      var bl = data.blobs[key]
+
       if (typeof bl.size === 'number') return loop()
 
       request.head(bl.link, function(err, response) {
         if (err) return cb(err)
+        if (response.statusCode === 404) {
+          log('404 for blob %s (%s) - removing...', bl.link, data.key)
+          delete data.blobs[key]
+          return loop()
+        }
         if (response.statusCode !== 200) return cb(new Error('bad status code for '+bl.key+' ('+response.statusCode+')'))
+
         log('Fetched blob size for %s (%s)', bl.link, data.key)
         bl.size = Number(response.headers['content-length'])
         loop()
