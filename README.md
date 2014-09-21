@@ -18,6 +18,7 @@ then add the following hook to dat.json
 
 ``` json
 {
+  "name": "some-dat",
   "hooks": {
     "listen": "dat-npm"
   }
