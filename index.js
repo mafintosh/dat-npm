@@ -70,6 +70,7 @@ var parse = function(dat) {
   return through.obj(function(data, enc, cb) {
     data = JSON.parse(data)
     var doc = data.doc
+    if (!doc) return cb()
 
     // dat uses .key
     doc.key = doc._id
