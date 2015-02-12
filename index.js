@@ -68,7 +68,12 @@ var addBlobSize = function() {
 
 var parse = function(dat) {
   return through.obj(function(data, enc, cb) {
-    data = JSON.parse(data)
+    try {
+      data = JSON.parse(data)
+    } catch (err) {
+      return cb()
+    }
+
     var doc = data.doc
     if (!doc) return cb()
 
