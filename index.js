@@ -69,9 +69,10 @@ function normalize () {
       if (!existing) return push(doc)
 
       if (doc._rev > existing._rev) {
-        log('Previous version for %s (version: %d) found. Updating to %s...', doc.key, existing._rev, doc._rev)
+        log('Previous version for %s (version: %s) found. Updating to %s...', doc.key, existing._rev, doc._rev)
         push(doc)
       } else {
+        log('Already have data for %s version: %s, skipping.', doc.key, doc._rev)
         cb() // nothing to update
       }
     })
@@ -104,14 +105,14 @@ function normalize () {
 function addBlobSize () {
   return parallel(20, function (data, cb) {
     var blobs = data.tarballs
-    var tarballs = []
+    var modified = []
     var i = 0
 
     loop()
 
     function loop () {
       if (i >= blobs.length) {
-        data.tarballs = tarballs
+        data.tarballs = modified
         return cb(null, data)
       }
 
@@ -119,18 +120,25 @@ function addBlobSize () {
 
       if (typeof bl.size === 'number') return loop()
 
-      request.head(bl.link, function (err, response) {
-        if (err) return cb(err)
-        if (response.statusCode === 404) {
-          log('404 for blob %s (%s) - removing...', bl.link, data.key)
+      tarballs.get(bl.key, function (err, existing) {
+        if (err && !err.notFound) return cb(err)
+        if (existing) {
+          log('Already have size for %s - skipping...', bl.key)
           return loop()
         }
-        if (response.statusCode !== 200) return cb(new Error('bad status code for '+bl.key+' ('+response.statusCode+')'))
+        request.head(bl.link, function (err, response) {
+          if (err) return cb(err)
+          if (response.statusCode === 404) {
+            log('404 for blob %s (%s) - removing...', bl.link, data.key)
+            return loop()
+          }
+          if (response.statusCode !== 200) return cb(new Error('bad status code for '+bl.key+' ('+response.statusCode+')'))
 
-        log('Fetched blob size for %s (%s)', bl.link, data.module.key)
-        bl.size = Number(response.headers['content-length'])
-        tarballs.push(bl)
-        loop()
+          log('Fetched blob size for %s (%s)', bl.link, data.module.key)
+          bl.size = Number(response.headers['content-length'])
+          modified.push(bl)
+          loop()
+        })
       })
     }
   })
