@@ -1,79 +1,59 @@
+var fs = require('fs')
 var request = require('request')
 var through = require('through2')
-var split = require('binary-split')
+var ndjson = require('ndjson')
 var once = require('once')
 var pump = require('pump')
 var concat = require('concat-stream')
 var parallel = require('parallel-transform')
+var Dat = require('dat-core')
 
-var tick = function(fn, err, val) {
-  process.nextTick(function() {
+var dat = Dat('./npm', {createIfMissing: true, valueEncoding: 'json'})
+var modules = dat.dataset('modules')
+var tarballs = dat.dataset('tarballs')
+
+update()
+
+function update (err) {
+  if (err) {
+    log('Error: %s - retrying in 5s', err.message)
+    return setTimeout(update, 5000)
+  }
+
+  latestSeq(function (err, seq) {
+    if (err) throw err
+    
+    seq = Math.max(0, seq-1) // sub 1 incase of errors
+
+    if (seq) log('Continuing fetching npm data from seq: %d', seq)
+
+    var url = 'https://skimdb.npmjs.com/registry/_changes?heartbeat=30000&include_docs=true&feed=continuous' + (seq ? '&since=' + seq : '')
+
+    pump(request(url), ndjson.parse(), normalize(), addBlobSize(), save(), update)
+  })
+}
+
+function latestSeq (cb) {
+  fs.readFile('./seq.json', function (err, buf) {
+    if (err && err.code !== 'ENOENT') return cb(err)
+    if (!buf) return cb(null, 0)
+    cb(null, +JSON.parse(buf).seq)
+  })
+}
+
+function tick (fn, err, val) {
+  process.nextTick(function () {
     fn(err, val)
   })
 }
 
-var latestSeq = function(dat, ready) {
-  // 10 just to make sure - pretty sure we only need 2 (1 in case we hit a schema)
-  dat.createChangesReadStream({data:true, decode:true, tail:10}).pipe(concat(function(changes) {
-    if (!changes.length) return ready(0)
-
-    var seq = changes
-      .map(function(change) {
-        return (change.value && change.value.couchSeq) || 0
-      })
-      .reduce(function(a, b) {
-        return Math.max(a, b)
-      })
-
-    ready(seq)
-  }))
-}
-
-var log = function(fmt) {
-  fmt = '[dat-npm] '+fmt
+function log (fmt) {
+  fmt = '[dat-npm] ' + fmt
   console.log.apply(console, arguments)
 }
 
-var addBlobSize = function() {
-  return parallel(20, function(data, cb) {
-    var blobs = Object.keys(data.blobs || {})
-    var i = 0
-
-    var loop = function() {
-      if (i >= blobs.length) return cb(null, data)
-
-      var key = blobs[i++]
-      var bl = data.blobs[key]
-
-      if (typeof bl.size === 'number') return loop()
-
-      request.head(bl.link, function(err, response) {
-        if (err) return cb(err)
-        if (response.statusCode === 404) {
-          log('404 for blob %s (%s) - removing...', bl.link, data.key)
-          delete data.blobs[key]
-          return loop()
-        }
-        if (response.statusCode !== 200) return cb(new Error('bad status code for '+bl.key+' ('+response.statusCode+')'))
-
-        log('Fetched blob size for %s (%s)', bl.link, data.key)
-        bl.size = Number(response.headers['content-length'])
-        loop()
-      })
-    }
-
-    loop()
-  })
-}
-
-var parse = function(dat) {
-  return through.obj(function(data, enc, cb) {
-    try {
-      data = JSON.parse(data)
-    } catch (err) {
-      return cb()
-    }
-
+function normalize () {
+  return through.obj(function (data, enc, cb) {
     var doc = data.doc
     if (!doc) return cb()
 
@@ -81,18 +61,28 @@ var parse = function(dat) {
     doc.key = doc._id
     delete doc._id
 
-    // dat reserves .version, and .version shouldn't be on top level of npm docs anyway
-    delete doc.version
-
     // keep the seq around because why not
     doc.couchSeq = data.seq
+      
+    modules.get(doc.key, function (err, existing) {
+      if (err && !err.notFound) return cb(err)
+      if (!existing) return push(doc)
 
-    var push = function(doc, updated) {
+      if (doc._rev > existing._rev) {
+        log('Previous version for %s (version: %d) found. Updating to %s...', doc.key, existing._rev, doc._rev)
+        push(doc)
+      } else {
+        cb() // nothing to update
+      }
+    })
+
+    function push (doc) {
       var versions = Object.keys((typeof doc.versions === 'object' && doc.versions) || {})
+      var tarballs = []
 
-      versions.forEach(function(version) {
+      versions.forEach(function (version) {
         var latest = doc.versions[version]
-        var filename = latest.name + '-' + version + '.tgz';
+        var filename = latest.name + '-' + version + '.tgz'
         var tgz = doc.versions[version].dist.tarball
 
         if (!tgz) {
@@ -100,63 +90,74 @@ var parse = function(dat) {
           return
         }
 
-        doc.blobs = doc.blobs || {}
-        if (doc.blobs[filename]) return
-
-        updated = true
-        doc.blobs[filename] = {
+        tarballs.push({
           key: filename,
           link: tgz
-        }
+        })
       })
 
-      if (updated) return cb(null, doc)
-
-      log('%s was not updated - skipping', doc.name)
-      cb()
+      cb(null, {module: doc, tarballs: tarballs})
     }
-
-    dat.get(doc.key, function(err, existing) {
-      if (err && !err.notFound) return cb(err)
-      if (!existing) return push(doc, true)
-
-      log('Previous version for %s (version: %d) found. Updating...', doc.key, existing.version)
-      doc.blobs = existing.blobs
-      doc.version = existing.version
-
-      push(doc, false)
-    })
   })
 }
 
-var save = function(dat) {
-  return through.obj(function(doc, enc, cb) {
-    dat.put(doc, {version:doc.version}, function(err, doc) {
+function addBlobSize () {
+  return parallel(20, function (data, cb) {
+    var blobs = data.tarballs
+    var tarballs = []
+    var i = 0
+
+    loop()
+
+    function loop () {
+      if (i >= blobs.length) {
+        data.tarballs = tarballs
+        return cb(null, data)
+      }
+
+      var bl = blobs[i++]
+
+      if (typeof bl.size === 'number') return loop()
+
+      request.head(bl.link, function (err, response) {
+        if (err) return cb(err)
+        if (response.statusCode === 404) {
+          log('404 for blob %s (%s) - removing...', bl.link, data.key)
+          return loop()
+        }
+        if (response.statusCode !== 200) return cb(new Error('bad status code for '+bl.key+' ('+response.statusCode+')'))
+
+        log('Fetched blob size for %s (%s)', bl.link, data.module.key)
+        bl.size = Number(response.headers['content-length'])
+        tarballs.push(bl)
+        loop()
+      })
+    }
+  })
+}
+
+function save () {
+  return through.obj(function (data, enc, cb) {
+    modules.put(data.module.key, data.module, function (err) {
       if (err) return cb(err)
-      log('Updated %s (version: %d)', doc.key, doc.version)
-      cb()
+      tarballs.batch(data.tarballs.map(function (t) {
+        return {
+          type: 'put',
+          content: 'file',
+          key: t.key,
+          value: {
+            link: t.link,
+            size: t.size
+          }
+        }
+      }), function (err) {
+        if (err) return cb(err)
+        fs.writeFile('./seq.json', JSON.stringify({seq: data.module.couchSeq}), function (err) {
+          if (err) return cb(err)
+          log('Updated %s (rev: %s)', data.module.key, data.module._rev)
+          cb()
+        })
+      })
     })
   })
-}
-
-module.exports = function(dat, cb) {
-  var update = function(err) {
-    if (err) {
-      log('Error: %s - retrying in 5s', err.message)
-      return setTimeout(update, 5000)
-    }
-
-    latestSeq(dat, function(seq) {
-      seq = Math.max(0, seq-1) // sub 1 incase of errors
-
-      if (seq) log('Continuing fetching npm data from seq: %d', seq)
-
-      var url = 'https://skimdb.npmjs.com/registry/_changes?heartbeat=30000&include_docs=true&feed=continuous' + (seq ? '&since=' + seq : '');
-
-      pump(request(url), split(), parse(dat), addBlobSize(dat), save(dat), update)
-    })
-  }
-
-  update()
-  cb()
 }
