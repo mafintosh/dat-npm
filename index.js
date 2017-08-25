@@ -6,11 +6,9 @@ var once = require('once')
 var pump = require('pump')
 var concat = require('concat-stream')
 var parallel = require('parallel-transform')
-var Dat = require('dat-core')
-
-var dat = Dat('./npm', {createIfMissing: true, valueEncoding: 'json'})
-var modules = dat.dataset('modules')
-
+var hyperdb = require('hyperdb')
+var db = hyperdb('./npm.db', {valueEncoding: 'json'})
+ 
 update()
 
 function update (err) {
@@ -22,21 +20,21 @@ function update (err) {
   latestSeq(function (err, seq) {
     if (err) throw err
     
-    seq = Math.max(0, seq-1) // sub 1 incase of errors
+    seq = Math.max(0, seq - 1) // sub 1 incase of errors
 
     if (seq) log('Continuing fetching npm data from seq: %d', seq)
 
     var url = 'https://skimdb.npmjs.com/registry/_changes?heartbeat=30000&include_docs=true&feed=continuous' + (seq ? '&since=' + seq : '')
 
-    pump(request(url), ndjson.parse(), normalize(), save(), update)
+    pump(request(url), ndjson.parse(), save(), update)
   })
 }
 
 function latestSeq (cb) {
-  fs.readFile('./seq.json', function (err, buf) {
-    if (err && err.code !== 'ENOENT') return cb(err)
-    if (!buf) return cb(null, 0)
-    cb(null, +JSON.parse(buf).seq)
+  db.get('/latest-seq', function (err, val) {
+    if (err || !val) return cb(null, 0)
+    var seq = val[0].value
+    cb(null, seq)
   })
 }
 
@@ -48,45 +46,26 @@ function tick (fn, err, val) {
 
 function log (fmt) {
   fmt = '[dat-npm] ' + fmt
-  console.log.apply(console, arguments)
-}
-
-function normalize () {
-  return through.obj(function (data, enc, cb) {
-    var doc = data.doc
-    if (!doc) return cb()
-
-    // dat uses .key
-    doc.key = doc._id
-    delete doc._id
-
-    // keep the seq around because why not
-    doc.couchSeq = data.seq
-      
-    modules.get(doc.key, function (err, existing) {
-      if (err && !err.notFound) return cb(err)
-      if (!existing) return cb(null, doc)
-
-      if (doc._rev > existing._rev) {
-        log('Previous version for %s (version: %s) found. Updating to %s...', doc.key, existing._rev, doc._rev)
-        cb(null, doc)
-      } else {
-        log('Already have data for %s version: %s, skipping.', doc.key, doc._rev)
-        cb() // nothing to update
-      }
-    })
-  })
+  console.error.apply(console, arguments)
 }
 
 function save () {
-  return through.obj(function (doc, enc, cb) {
-    modules.put(doc.key, doc, function (err) {
+  return through.obj(function (data, enc, cb) {
+    var doc = data.doc
+    if (!doc) return cb()
+    if (data.id.match(/^_design\//)) return cb()
+    var key = doc._id
+    if (doc._deleted) {
+      // TODO
+      return cb()
+    }
+    var versions = Object.keys(doc.versions).map(function (v) {
+      return v
+    })
+    db.put('/modules/' + key, versions, function (err) {
       if (err) return cb(err)
-      fs.writeFile('./seq.json', JSON.stringify({seq: doc.couchSeq}), function (err) {
-        if (err) return cb(err)
-        log('Updated %s (rev: %s)', doc.key, doc._rev)
-        cb()
-      })
+      log('wrote /modules/' + key + '=' + versions + ', seq=' + data.seq)
+      db.put('/latest-seq', data.seq, cb)
     })
   })
 }

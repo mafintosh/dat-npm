@@ -1,6 +1,6 @@
 node_modules
-test
 .dat
 dat.json
 .DS_Store
 seq.json
+npm.db

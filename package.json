@@ -4,8 +4,8 @@
   "description": "npm registry on dat",
   "main": "index.js",
   "dependencies": {
-    "binary-split": "^0.1.2",
     "concat-stream": "^1.4.6",
+    "hyperdb": "^1.0.0-rc2",
     "ndjson": "^1.3.0",
     "once": "^1.3.0",
     "parallel-transform": "^0.2.2",
