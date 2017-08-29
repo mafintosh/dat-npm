@@ -1,8 +1,6 @@
 var fs = require('fs')
 var request = require('request')
 var through = require('through2')
-var ndjson = require('ndjson')
-var once = require('once')
 var pump = require('pump')
 var concat = require('concat-stream')
 var parallel = require('parallel-transform')
@@ -62,7 +60,13 @@ function save () {
     var versions = Object.keys(doc.versions).map(function (v) {
       return v
     })
-    db.put('/modules/' + key, versions, function (err) {
+    var meta = {
+      versions: versions,
+      dependencies: doc.dependencies,
+      optionalDependencies: doc.optionalDependencies,
+      devDependencies: doc.devDependencies
+    }
+    db.put('/modules/' + key, meta, function (err) {
       if (err) return cb(err)
       log('wrote /modules/' + key + '=' + versions + ', seq=' + data.seq)
       db.put('/latest-seq', data.seq, cb)
