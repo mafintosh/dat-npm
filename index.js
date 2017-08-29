@@ -6,6 +6,7 @@ var ndjson = require('ndjson')
 var concat = require('concat-stream')
 var parallel = require('parallel-transform')
 var hyperdb = require('hyperdb')
+var hyperdiscovery = require('hyperdiscovery')
 var db = hyperdb('./npm.db', {valueEncoding: 'json'})
  
 update()
