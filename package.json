@@ -7,6 +7,7 @@
     "concat-stream": "^1.4.6",
     "hyperdb": "^1.0.0-rc2",
     "hyperdiscovery": "^6.0.4",
+    "ndjson": "^1.5.0",
     "parallel-transform": "^0.2.2",
     "pump": "^0.3.5",
     "request": "^2.40.0",
