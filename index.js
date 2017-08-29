@@ -35,6 +35,11 @@ function latestSeq (cb) {
     var seq = val[0].value
     cb(null, seq)
   })
+  
+  db.on('ready', function () {
+    console.log('sharing hypercore', db.key.toString('hex'))
+    db.discovery = hyperdiscovery(db, {live: true})
+  })
 }
 
 function tick (fn, err, val) {
