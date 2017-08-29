@@ -58,16 +58,16 @@ function save () {
       // TODO
       return cb()
     }
-    var versions = Object.keys(doc.versions).map(function (v) {
-      return v
+    var versions = {}
+    Object.keys(doc.versions).map(function (v) {
+      var thisVer = doc.versions[v]
+      versions[v] = {
+        dependencies: thisVer.dependencies,
+        optionalDependencies: thisVer.optionalDependencies,
+        devDependencies: thisVer.devDependencies
+      }
     })
-    var meta = {
-      versions: versions,
-      dependencies: doc.dependencies,
-      optionalDependencies: doc.optionalDependencies,
-      devDependencies: doc.devDependencies
-    }
-    db.put('/modules/' + key, meta, function (err) {
+    db.put('/modules/' + key, versions, function (err) {
       if (err) return cb(err)
       log('wrote /modules/' + key + '=' + versions + ', seq=' + data.seq)
       db.put('/latest-seq', data.seq, cb)
