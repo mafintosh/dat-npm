@@ -1,7 +1,7 @@
 var hyperdb = require('hyperdb')
 var hyperdiscovery = require('hyperdiscovery')
 
-var npmkey = 'f60e9c6ab864afb2e439135b04b41828c20f9f8e4558394a28d2a52cae1ae872'
+var npmkey = '0f8a60595af5387d52b053af4a8a4aecd5d6d3799741c3993916798e71ea0730'
 var db = hyperdb('./npm.db', npmkey, {sparse: true, valueEncoding: 'json'})
 
 db.on('ready', function () {
