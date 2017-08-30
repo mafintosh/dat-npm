@@ -65,18 +65,10 @@ function save () {
       // TODO
       return cb()
     }
-    var versions = {}
-    Object.keys(doc.versions).map(function (v) {
-      var thisVer = doc.versions[v]
-      versions[v] = {
-        dependencies: thisVer.dependencies,
-        optionalDependencies: thisVer.optionalDependencies,
-        devDependencies: thisVer.devDependencies
-      }
-    })
-    db.put('/modules/' + key, versions, function (err) {
+    var metadata = minify(doc)
+    db.put('/modules/' + key, metadata, function (err) {
       if (err) return cb(err)
-      log('wrote /modules/' + key + '=' + versions + ', seq=' + data.seq)
+      log('wrote /modules/' + key + ', seq=' + data.seq)
       db.put('/latest-seq', data.seq, cb)
     })
   })
