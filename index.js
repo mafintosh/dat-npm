@@ -7,6 +7,7 @@ var concat = require('concat-stream')
 var parallel = require('parallel-transform')
 var hyperdb = require('hyperdb')
 var hyperdiscovery = require('hyperdiscovery')
+var minify = require('minify-registry-metadata')
 var db = hyperdb('./npm.db', {valueEncoding: 'json'})
  
 update()
