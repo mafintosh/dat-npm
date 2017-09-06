@@ -1,7 +1,11 @@
 var http = require('http')
 var test = require('tape')
 var request = require('request')
+var rimraf = require('rimraf')
 var restApi = require('./rest-api.js')
+
+rimraf.sync('./npm-meta.db')
+rimraf.sync('./npm-tarballs.db')
 
 test('get tarball', function (t) {
   var server = restApi(function (err, router, datNpm) {

@@ -18,7 +18,10 @@
     "through2": "^0.6.1",
     "validate-npm-package-name": "^3.0.0"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "rimraf": "^2.6.1",
+    "tape": "^4.8.0"
+  },
   "scripts": {
     "test": "node test.js"
   },
