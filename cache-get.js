@@ -9,12 +9,13 @@ var keys = {
 }
 
 init(keys, function (err, datNpm) {
-  datNpm.meta.once('remote-update', function () {
-    datNpm.meta.get('/modules/request', function (err, data) {
-      console.log(err || JSON.stringify(data[0].value))
+  datNpm.tarballs.metadata.once('remote-update', function () {
+    datNpm.tarballs.stat('/tarballs/request-2.80.0.tgz', function (err, stat) {
+      console.log(err || JSON.stringify(stat))
       datNpm.tarballs.close()
       datNpm.tarballs.swarm.close()
       datNpm.meta.swarm.close()
-    })    
+    })
   })
 })
+  

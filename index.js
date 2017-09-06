@@ -16,21 +16,18 @@ module.exports = function (keys, cb) {
     keys = null
   }
   var meta
-  var tarballs = hyperdrive('./npm-tarballs.db')
+  var tarballs = hyperdrive('./npm-tarballs.db', keys && keys.tarballs, {live: true})
   tarballs.on('ready', function () {
-    var tarballSwarm = hyperdiscovery(tarballs, keys && keys.tarballs, {live: true})
+    var tarballSwarm = hyperdiscovery(tarballs)
     meta = hyperdb('./npm-meta.db', keys && keys.meta, {sparse: true, valueEncoding: 'json'})
     meta.on('ready', function () {
       var metaSwarm = hyperdiscovery(meta, {live: true})
       meta.swarm = metaSwarm
       tarballs.swarm = tarballSwarm
-      if (!keys) return cb(null, {meta: meta, tarballs: tarballs, startUpdating: startUpdating})
-      meta.once('remote-update', function () {
-        cb(null, {meta: meta, tarballs: tarballs, startUpdating: startUpdating})
-      })
+      cb(null, {meta: meta, tarballs: tarballs, startUpdating: startUpdating})
     })    
   })
-  
+
   function startUpdating (err) {
     if (err) {
       log('Error updating: %s - retrying in 5s', err.message)
