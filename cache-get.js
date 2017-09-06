@@ -9,13 +9,15 @@ var keys = {
 }
 
 init(keys, function (err, datNpm) {
-  datNpm.tarballs.metadata.once('remote-update', function () {
-    datNpm.tarballs.stat('/tarballs/hypercore-6.6.6.tgz', function (err, stat) {
+  tryStat()
+  function tryStat () {
+    datNpm.tarballs.stat('/tarballs/hypercore-6.6.2.tgz', function (err, stat) {
+      if (err) return datNpm.tarballs.metadata.once('remote-update', tryStat)
       console.log(err || JSON.stringify(stat))
       datNpm.tarballs.close()
       datNpm.tarballs.swarm.close()
       datNpm.meta.swarm.close()
     })
-  })
+  }
 })
   
