@@ -10,7 +10,7 @@ var keys = {
 
 init(keys, function (err, datNpm) {
   datNpm.tarballs.metadata.once('remote-update', function () {
-    datNpm.tarballs.stat('/tarballs/request-2.80.0.tgz', function (err, stat) {
+    datNpm.tarballs.stat('/tarballs/hypercore-6.6.6.tgz', function (err, stat) {
       console.log(err || JSON.stringify(stat))
       datNpm.tarballs.close()
       datNpm.tarballs.swarm.close()

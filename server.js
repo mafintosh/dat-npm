@@ -1,7 +1,7 @@
 var http = require('http')
 var server = require('./rest-api.js')(function (err, router, datNpm) {
   var server = http.createServer(function (req, res) {
-    console.log(req.method, req.url)
+    console.error(req.method, req.url)
     router(req, res)
   })
   var port = process.env.PORT || 8080

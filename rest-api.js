@@ -50,6 +50,7 @@ module.exports = function (cb) {
               res.writeHead(500)
               return res.end(JSON.stringify({error: err.message}))
             }
+            console.error('wrote new tarball to cache', key)
             res.writeHead(200)
             res.end(JSON.stringify({ready: true, key: key}))
           })
