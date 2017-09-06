@@ -34,6 +34,7 @@ module.exports = function (cb) {
       var tarballUrl = `https://registry.npmjs.org/${module}/-/${tarball}`
       datNpm.tarballs.stat(key, function (err, stat) {
         if (err) return fetch()
+        if (!stat || !stat.size) return fetch()
         res.writeHead(200)
         return res.end(JSON.stringify({ready: true, key: key}))
       })
