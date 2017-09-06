@@ -3,4 +3,4 @@ node_modules
 dat.json
 .DS_Store
 seq.json
-npm.db
+*.db

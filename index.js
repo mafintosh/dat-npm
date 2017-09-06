@@ -6,70 +6,85 @@ var ndjson = require('ndjson')
 var concat = require('concat-stream')
 var parallel = require('parallel-transform')
 var hyperdb = require('hyperdb')
+var hyperdrive = require('hyperdrive')
 var hyperdiscovery = require('hyperdiscovery')
 var minify = require('minify-registry-metadata')
-var db = hyperdb('./npm.db', {valueEncoding: 'json'})
  
-update()
-
-function update (err) {
-  if (err) {
-    log('Error: %s - retrying in 5s', err.message)
-    return setTimeout(update, 5000)
+module.exports = function (keys, cb) {
+  if (typeof keys === 'function') {
+    cb = keys
+    keys = null
   }
-
-  latestSeq(function (err, seq) {
-    if (err) throw err
-    
-    seq = Math.max(0, seq - 1) // sub 1 incase of errors
-
-    if (seq) log('Continuing fetching npm data from seq: %d', seq)
-
-    var url = 'https://skimdb.npmjs.com/registry/_changes?heartbeat=30000&include_docs=true&feed=continuous' + (seq ? '&since=' + seq : '')
-
-    pump(request(url), ndjson.parse(), save(), update)
-  })
-}
-
-function latestSeq (cb) {
-  db.get('/latest-seq', function (err, val) {
-    if (err || !val) return cb(null, 0)
-    var seq = val[0].value
-    cb(null, seq)
+  var meta
+  var tarballs = hyperdrive('./npm-tarballs.db')
+  tarballs.on('ready', function () {
+    var tarballSwarm = hyperdiscovery(tarballs, keys && keys.tarballs, {live: true})
+    meta = hyperdb('./npm-meta.db', keys && keys.meta, {sparse: true, valueEncoding: 'json'})
+    meta.on('ready', function () {
+      var metaSwarm = hyperdiscovery(meta, {live: true})
+      meta.swarm = metaSwarm
+      tarballs.swarm = tarballSwarm
+      if (!keys) return cb(null, {meta: meta, tarballs: tarballs, startUpdating: startUpdating})
+      meta.once('remote-update', function () {
+        cb(null, {meta: meta, tarballs: tarballs, startUpdating: startUpdating})
+      })
+    })    
   })
   
-  db.on('ready', function () {
-    console.log('sharing hypercore', db.key.toString('hex'))
-    db.discovery = hyperdiscovery(db, {live: true})
-  })
-}
-
-function tick (fn, err, val) {
-  process.nextTick(function () {
-    fn(err, val)
-  })
-}
-
-function log (fmt) {
-  fmt = '[dat-npm] ' + fmt
-  console.error.apply(console, arguments)
-}
-
-function save () {
-  return through.obj(function (data, enc, cb) {
-    var doc = data.doc
-    if (!doc) return cb()
-    if (data.id.match(/^_design\//)) return cb()
-    var key = doc._id
-    if (doc._deleted) {
-      // TODO
-      return cb()
+  function startUpdating (err) {
+    if (err) {
+      log('Error updating: %s - retrying in 5s', err.message)
+      return setTimeout(startUpdating, 5000)
     }
-    var metadata = minify(doc)
-    db.put('/modules/' + key, metadata, function (err) {
-      if (err) return cb(err)
-      log('wrote /modules/' + key + ', seq=' + data.seq)
-      db.put('/latest-seq', data.seq, cb)
+
+    latestSeq(function (err, seq) {
+      if (err) throw err
+    
+      seq = Math.max(0, seq - 1) // sub 1 incase of errors
+
+      if (seq) log('Continuing fetching npm data from seq: %d', seq)
+
+      var url = 'https://skimdb.npmjs.com/registry/_changes?heartbeat=30000&include_docs=true&feed=continuous' + (seq ? '&since=' + seq : '')
+
+      pump(request(url), ndjson.parse(), save(), startUpdating)
     })
-  })
+  }
+
+  function latestSeq (cb) {
+    meta.get('/latest-seq', function (err, val) {
+      if (err || !val) return cb(null, 0)
+      var seq = val[0].value
+      cb(null, seq)
+    })
+  }
+
+  function tick (fn, err, val) {
+    process.nextTick(function () {
+      fn(err, val)
+    })
+  }
+
+  function log (fmt) {
+    fmt = '[dat-npm] ' + fmt
+    console.error.apply(console, arguments)
+  }
+
+  function save () {
+    return through.obj(function (data, enc, cb) {
+      var doc = data.doc
+      if (!doc) return cb()
+      if (data.id.match(/^_design\//)) return cb()
+      var key = doc._id
+      if (doc._deleted) {
+        // TODO
+        return cb()
+      }
+      var metadata = minify(doc)
+      meta.put('/modules/' + key, metadata, function (err) {
+        if (err) return cb(err)
+        log('wrote /modules/' + key + ', seq=' + data.seq)
+        meta.put('/latest-seq', data.seq, cb)
+      })
+    })
+  }
 }

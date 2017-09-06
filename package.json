@@ -5,17 +5,21 @@
   "main": "index.js",
   "dependencies": {
     "concat-stream": "^1.4.6",
-    "hyperdb": "^1.0.0-rc2",
+    "hyperdb": "^1.1.0-rc1",
     "hyperdiscovery": "^6.0.4",
     "minify-registry-metadata": "^2.0.0",
     "ndjson": "^1.5.0",
     "parallel-transform": "^0.2.2",
     "pump": "^0.3.5",
     "request": "^2.40.0",
-    "through2": "^0.6.1"
+    "semver": "^5.4.1",
+    "through2": "^0.6.1",
+    "validate-npm-package-name": "^3.0.0"
   },
   "devDependencies": {},
-  "scripts": {},
+  "scripts": {
+    "test": "node test.js"
+  },
   "repository": {
     "type": "git",
     "url": "git://github.com/mafintosh/dat-npm"
