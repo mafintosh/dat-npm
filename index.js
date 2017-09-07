@@ -117,14 +117,16 @@ module.exports = function (keys, cb) {
             return cb(null) // ignore forbidden
           }
           if (re.statusCode > 299) {
-            return re.pipe(concat(function (resp) {
+            return pump(re, concat(function (resp) {
               // https://github.com/npm/registry/issues/213
               if (resp.toString().match('Error fetching package from tmp remote')) {
                 log('500 tmp remote error: ' + i.url)
                 return cb(null) // ignore this error for now
               }
               return cb(new Error('Status: ' + re.statusCode + ' ' + i.url))
-            }))
+            }), function (err) {
+              if (err) console.log('concat error ' + err.message + ' ' + i.url)
+            })
           }
           var ws = tarballs.createWriteStream(filename)
           pump(re, ws, function (err) {
