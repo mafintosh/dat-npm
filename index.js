@@ -107,6 +107,10 @@ module.exports = function (keys, cb) {
         log('GET', i.url)
         var filename = module.exports.hashFilename(i.filename)
         var r = request(i.url)
+        r.on('error', function (err) {
+          log('Request error: ' + err.message)
+          return cb(err)
+        })
         r.on('response', function (re) {
           if (re.statusCode === 404) {
             log('404 ' + i.url)
