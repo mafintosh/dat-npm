@@ -112,6 +112,9 @@ module.exports = function (keys, cb) {
             log('404 ' + i.url)
             return cb() // ignore 404s
           }
+          if (re.statusCode === 503) {
+            return cb(null) // ignore forbidden
+          }
           if (re.statusCode > 299) {
             return re.pipe(concat(function (resp) {
               // https://github.com/npm/registry/issues/213
