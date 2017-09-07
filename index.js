@@ -108,7 +108,11 @@ module.exports = function (keys, cb) {
         var filename = module.exports.hashFilename(i.filename)
         var r = request(i.url)
         r.on('response', function (re) {
-          if (re.statusCode > 299) return cb(new Error('Status: ' + re.statusCode))
+          if (re.statusCode === 404) {
+            log('404 ' + i.url)
+            return cb() // ignore 404s
+          }
+          if (re.statusCode > 299) return cb(new Error('Status: ' + re.statusCode + ' ' + i.url))
           var ws = tarballs.createWriteStream(filename)
           pump(re, ws, function (err) {
             if (err) {
