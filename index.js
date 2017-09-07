@@ -1,4 +1,6 @@
 var fs = require('fs')
+var path = require('path')
+var crypto = require('crypto')
 var request = require('request')
 var through = require('through2')
 var pump = require('pump')
@@ -9,7 +11,11 @@ var hyperdb = require('hyperdb')
 var hyperdrive = require('hyperdrive')
 var hyperdiscovery = require('hyperdiscovery')
 var minify = require('minify-registry-metadata')
+var parallel = require('run-parallel')
+var mkdirp = require('mkdirp')
  
+var PARALLEL = 1024
+
 module.exports = function (keys, cb) {
   if (typeof keys === 'function') {
     cb = keys
@@ -77,11 +83,49 @@ module.exports = function (keys, cb) {
         return cb()
       }
       var metadata = minify(doc)
-      meta.put('/modules/' + key, metadata, function (err) {
+      var tarballs = Object.keys(metadata.versions).map(function (v) {
+        var dist = metadata.versions[v].dist
+        return {
+          filename: path.basename(dist.tarball),
+          url: dist.tarball
+        }
+      })
+      downloadTarballs(tarballs, function (err) {
         if (err) return cb(err)
-        log('wrote /modules/' + key + ', seq=' + data.seq)
-        meta.put('/latest-seq', data.seq, cb)
+        meta.put('/modules/' + key, metadata, function (err) {
+          if (err) return cb(err)
+          log('wrote /modules/' + key + ', seq=' + data.seq)
+          meta.put('/latest-seq', data.seq, cb)
+        })
       })
     })
   }
+  
+  function downloadTarballs (items, done) {
+    var fns = items.map(function (i) {
+      return function (cb) {
+        log('GET', i.url)
+        var filename = module.exports.hashFilename(i.filename)
+        var r = request(i.url)
+        r.on('response', function (re) {
+          if (re.statusCode > 299) return cb(new Error('Status: ' + re.statusCode))
+          var ws = tarballs.createWriteStream(filename)
+          pump(re, ws, function (err) {
+            if (err) {
+              err.errType = 'streamPumpErr'
+              return cb(err)
+            }
+            cb(null)
+          })
+        })
+      }
+    })
+    parallel(fns, done)
+  }
+}
+
+// only needed until hyperdb lands in hyperdrive
+module.exports.hashFilename = function (filename) {
+  var h = crypto.createHash('sha256').update(filename).digest('hex')
+  return `${h.slice(0, 2)}/${h.slice(2, 4)}/${h.slice(4, 6)}/${h.slice(6, 8)}/${h.slice(8)}`  
 }
