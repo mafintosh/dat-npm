@@ -113,6 +113,7 @@ module.exports = function (keys, cb) {
             return cb() // ignore 404s
           }
           if (re.statusCode === 503) {
+            log('503 ' + i.url)
             return cb(null) // ignore forbidden
           }
           if (re.statusCode > 299) {
