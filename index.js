@@ -116,6 +116,7 @@ module.exports = function (keys, cb) {
             return re.pipe(concat(function (resp) {
               // https://github.com/npm/registry/issues/213
               if (resp.toString().match('Error fetching package from tmp remote')) {
+                log('500 tmp remote error: ' + i.url)
                 return cb(null) // ignore this error for now
               }
               return cb(new Error('Status: ' + re.statusCode + ' ' + i.url))
