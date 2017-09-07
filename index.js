@@ -112,7 +112,15 @@ module.exports = function (keys, cb) {
             log('404 ' + i.url)
             return cb() // ignore 404s
           }
-          if (re.statusCode > 299) return cb(new Error('Status: ' + re.statusCode + ' ' + i.url))
+          if (re.statusCode > 299) {
+            return re.pipe(concat(function (resp) {
+              // https://github.com/npm/registry/issues/213
+              if (resp.toString().match('Error fetching package from tmp remote')) {
+                return cb(null) // ignore this error for now
+              }
+              return cb(new Error('Status: ' + re.statusCode + ' ' + i.url))
+            }))
+          }
           var ws = tarballs.createWriteStream(filename)
           pump(re, ws, function (err) {
             if (err) {
