@@ -14,6 +14,7 @@
     "pump": "^0.3.5",
     "request": "^2.40.0",
     "routes-router": "^4.3.0",
+    "run-parallel": "^1.1.6",
     "semver": "^5.4.1",
     "through2": "^0.6.1",
     "validate-npm-package-name": "^3.0.0"
