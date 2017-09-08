@@ -102,43 +102,49 @@ module.exports = function (keys, cb) {
   
   function downloadTarballs (items, done) {    
     var transform = parallel(24, function (i, cb) {
-      log('GET', i.url)
       var filename = module.exports.hashFilename(i.filename)
-      var r = request(i.url)
-      r.on('error', function (err) {
-        log('Request error: ' + err.message + ' - ' + i.url)
-        return cb(err)
+      tarballs.stat(filename, function (err, stat) {
+        if (stat) return cb() // already have it
+        dlTarball()
       })
-      r.on('response', function (re) {
-        if (re.statusCode === 404) {
-          log('404 ' + i.url)
-          return cb() // ignore 404s
-        }
-        if (re.statusCode === 503) {
-          log('503 ' + i.url)
-          return cb(null) // ignore forbidden
-        }
-        if (re.statusCode > 299) {
-          return pump(re, concat(function (resp) {
-            // https://github.com/npm/registry/issues/213
-            if (resp.toString().match('Error fetching package from tmp remote')) {
-              log('500 tmp remote error: ' + i.url)
-              return cb(null) // ignore this error for now
-            }
-            return cb(new Error('Status: ' + re.statusCode + ' ' + i.url))
-          }), function (err) {
-            if (err) console.log('concat error ' + err.message + ' ' + i.url)
-          })
-        }
-        var ws = tarballs.createWriteStream(filename)
-        pump(re, ws, function (err) {
-          if (err) {
-            err.errType = 'streamPumpErr'
-            return cb(err)
-          }
-          cb(null)
+      function dlTarball () {
+        log('GET', i.url)
+        var r = request(i.url)
+        r.on('error', function (err) {
+          log('Request error: ' + err.message + ' - ' + i.url)
+          return cb(err)
         })
-      })
+        r.on('response', function (re) {
+          if (re.statusCode === 404) {
+            log('404 ' + i.url)
+            return cb() // ignore 404s
+          }
+          if (re.statusCode === 503) {
+            log('503 ' + i.url)
+            return cb(null) // ignore forbidden
+          }
+          if (re.statusCode > 299) {
+            return pump(re, concat(function (resp) {
+              // https://github.com/npm/registry/issues/213
+              if (resp.toString().match('Error fetching package from tmp remote')) {
+                log('500 tmp remote error: ' + i.url)
+                return cb(null) // ignore this error for now
+              }
+              return cb(new Error('Status: ' + re.statusCode + ' ' + i.url))
+            }), function (err) {
+              if (err) console.log('concat error ' + err.message + ' ' + i.url)
+            })
+          }
+          var ws = tarballs.createWriteStream(filename)
+          pump(re, ws, function (err) {
+            if (err) {
+              err.errType = 'streamPumpErr'
+              return cb(err)
+            }
+            cb(null)
+          })
+        })
+      }
     })
     items.forEach(function (i) { transform.write(i) })
     transform.end()
