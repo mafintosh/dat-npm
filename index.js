@@ -12,7 +12,6 @@ var hyperdrive = require('hyperdrive')
 var hyperdiscovery = require('hyperdiscovery')
 var minify = require('minify-registry-metadata')
 var parallel = require('parallel-transform')
-var mkdirp = require('mkdirp')
  
 var PARALLEL = 1024
 
