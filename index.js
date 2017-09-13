@@ -130,6 +130,10 @@ module.exports = function (keys, cb) {
                 log('500 tmp remote error: ' + i.url)
                 return cb(null) // ignore this error for now
               }
+              if (resp.toString().match('InternalError')) {
+                log('500 InternalError: ' + i.url)
+                return cb(null) // ignore this error for now
+              }
               return cb(new Error('Status: ' + re.statusCode + ' ' + i.url))
             }), function (err) {
               if (err) console.log('concat error ' + err.message + ' ' + i.url)
